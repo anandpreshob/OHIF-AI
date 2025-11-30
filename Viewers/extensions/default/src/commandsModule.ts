@@ -74,9 +74,12 @@ const commandsModule = ({
             return;
           }
 
-          if (!toolboxState.getNnInterSam2()) {
+          const selectedModel = toolboxState.getSelectedModel();
+          if (selectedModel === 'nnInteractive') {
             commandsManager.run('nninter');
-          } else {
+          } else if (selectedModel === 'sam2') {
+            commandsManager.run('sam2');
+          } else if (selectedModel === 'medsam2') {
             commandsManager.run('sam2');
           }
         }, 50);
@@ -105,7 +108,8 @@ const commandsModule = ({
         return;
       }
 
-      if (toolboxState.getNnInterSam2()) {
+      const selectedModel = toolboxState.getSelectedModel();
+      if (selectedModel === 'sam2' || selectedModel === 'medsam2') {
         return commandsManager.run('sam2');
       }
 
@@ -587,10 +591,8 @@ const commandsModule = ({
       }
 
       const overlap = false
-      let medsam2 = false;
-      if (toolboxState.getMedSam2()) {
-        medsam2 = true;
-      }
+      const selectedModel = toolboxState.getSelectedModel();
+      const medsam2 = selectedModel === 'medsam2';
       const start = Date.now();
       
       const segs = servicesManager.services.segmentationService.getSegmentations()
@@ -954,7 +956,7 @@ const commandsModule = ({
               modifiedTime: utils.formatDate(Date.now(), 'YYYYMMDD'),
 
               algorithmType: currentDisplaySets.SeriesInstanceUID,
-              algorithmName: "sam2_"+sam_elapsed,
+              algorithmName: selectedModel+"_"+sam_elapsed,
               description: prompt_info,
               center:  z_range.length > 0 ? z_range.reduce((sum, z) => sum + z, 0) / z_range.length : 0
             }

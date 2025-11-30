@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Icons, PanelSection, ToolSettings, Switch, Label } from '@ohif/ui-next';
+import { Icons, PanelSection, ToolSettings, Switch, Label, Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@ohif/ui-next';
 import { useSystem, useToolbar } from '@ohif/core';
 import classnames from 'classnames';
 import { useTranslation } from 'react-i18next';
@@ -34,8 +34,7 @@ export function Toolbox({ buttonSectionId, title }: { buttonSectionId: string; t
   const [liveMode, setLiveMode] = useState(toolboxState.getLiveMode());
   const [posNeg, setPosNeg] = useState(toolboxState.getPosNeg());
   const [refineNew, setRefineNew] = useState(toolboxState.getRefineNew());
-  const [nnInterSam2, setNnInterSam2] = useState(toolboxState.getNnInterSam2());
-  const [medSam2, setMedSam2] = useState(toolboxState.getMedSam2());
+  const [selectedModel, setSelectedModel] = useState<'nnInteractive' | 'sam2' | 'medsam2'>(toolboxState.getSelectedModel());
 
   // Sync local state with global state changes
   useEffect(() => {
@@ -43,8 +42,7 @@ export function Toolbox({ buttonSectionId, title }: { buttonSectionId: string; t
       setLiveMode(toolboxState.getLiveMode());
       setPosNeg(toolboxState.getPosNeg());
       setRefineNew(toolboxState.getRefineNew());
-      setNnInterSam2(toolboxState.getNnInterSam2());
-      setMedSam2(toolboxState.getMedSam2());
+      setSelectedModel(toolboxState.getSelectedModel());
       setIsLocked(toolboxState.getLocked());
     };
 
@@ -176,7 +174,7 @@ export function Toolbox({ buttonSectionId, title }: { buttonSectionId: string; t
     }
   }, [isLocked]);
 
-  // Keyboard hotkey handler for nnInter/SAM2 toggle
+  // Keyboard hotkey handler for model selection toggle (cycles through: nnInteractive -> sam2 -> medsam2 -> nnInteractive)
   useEffect(() => {
     if (hotkeysDisabled) {
       return;
@@ -193,10 +191,12 @@ export function Toolbox({ buttonSectionId, title }: { buttonSectionId: string; t
         
         if (!isInputField) {
           event.preventDefault();
-          const newNnInterSam2 = !nnInterSam2;
-          setNnInterSam2(newNnInterSam2);
-          toolboxState.setNnInterSam2(newNnInterSam2);
-          console.log('nnInter/SAM2 toggled via hotkey (r):', newNnInterSam2);
+          // Cycle through models: nnInteractive -> sam2 -> medsam2 -> nnInteractive
+          const nextModel = selectedModel === 'nnInteractive' ? 'sam2' : 
+                           selectedModel === 'sam2' ? 'medsam2' : 'nnInteractive';
+          setSelectedModel(nextModel);
+          toolboxState.setSelectedModel(nextModel);
+          console.log('Model selection toggled via hotkey (t):', nextModel);
         }
       }
     };
@@ -208,7 +208,7 @@ export function Toolbox({ buttonSectionId, title }: { buttonSectionId: string; t
     return () => {
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [nnInterSam2, hotkeysDisabled]);
+  }, [selectedModel, hotkeysDisabled]);
 
   const { toolbarButtons: toolboxSections, onInteraction } = useToolbar({
     servicesManager,
@@ -358,30 +358,26 @@ export function Toolbox({ buttonSectionId, title }: { buttonSectionId: string; t
                      />
                    </div>
                    <div className="flex items-center gap-2">
-                     <Label htmlFor="nninter-sam2">nnInter/SAM2</Label>
-                     <Switch
-                       id="nninter-sam2"
-                       checked={nnInterSam2}
-                       onCheckedChange={(checked) => {
-                        setNnInterSam2(checked);
-                        toolboxState.setNnInterSam2(checked);
-                        console.log('nnInter/SAM2:', checked);
-                      }}
-                     />
+                     <Label htmlFor="model-selection">Model</Label>
+                     <Select
+                       value={selectedModel}
+                       onValueChange={(value) => {
+                         const model = value as 'nnInteractive' | 'sam2' | 'medsam2';
+                         setSelectedModel(model);
+                         toolboxState.setSelectedModel(model);
+                         console.log('Model selection:', model);
+                       }}
+                     >
+                       <SelectTrigger id="model-selection" className="w-[140px]">
+                         <SelectValue placeholder="Select model" />
+                       </SelectTrigger>
+                       <SelectContent>
+                         <SelectItem value="nnInteractive">nnInteractive</SelectItem>
+                         <SelectItem value="sam2">SAM2</SelectItem>
+                         <SelectItem value="medsam2">MedSAM2</SelectItem>
+                       </SelectContent>
+                     </Select>
                    </div>
-                   {/* Uncomment the below to use MedSAM2
-                   <div className="flex items-center gap-2">
-                     <Label htmlFor="medsam2">MedSAM2</Label>
-                     <Switch
-                       id="medsam2"
-                       checked={medSam2}
-                       onCheckedChange={(checked) => {
-                        setMedSam2(checked);
-                        toolboxState.setMedSam2(checked);
-                        console.log('MedSAM2:', checked);
-                      }}
-                     />
-                   </div> */}
                  </div>
                 )}
               <div

@@ -601,9 +601,9 @@ const toolbarButtons: Button[] = [
     props: {
       type: 'tool',
       icon: 'tool-nninter',
-      label: 'nnInteractive',
-      tooltip: 'nnInteractive',
-      commands: 'nninter',
+      label: 'run segmentation',
+      tooltip: 'run',
+      commands: 'runAiSegmentation',
     },
   },
   {

@@ -3,8 +3,7 @@
 let liveMode = true;
 let posNeg = false;
 let refineNew = false;
-let nnInterSam2 = false; // Add new state for nnInter/SAM2 toggle
-let medSam2 = false; // Add new state for MedSAM2 toggle
+let selectedModel: 'nnInteractive' | 'sam2' | 'medsam2' = 'nnInteractive'; // Model selection: nnInteractive, SAM2, or MedSAM2
 let locked = false;
 let currentActiveSegment = 1;
 
@@ -21,18 +20,27 @@ export const toolboxState = {
   setRefineNew: (enabled: boolean) => {
     refineNew = enabled;
     if (enabled) {
-        commandsManager.run('resetNninter');
+        // Note: resetNninter should be called from the component/command that uses this state
+         // When RefineNew is enabled and model is nnInteractive, reset nninter
+         if (selectedModel === 'nnInteractive') {
+          commandsManager?.run('resetNninter');
+        }
         toolboxState.setPosNeg(false);
     }
   },
-  // Add new methods for nnInter/SAM2 toggle
-  getNnInterSam2: () => nnInterSam2,
-  setNnInterSam2: (enabled: boolean) => {
-    nnInterSam2 = enabled;
+  // Model selection methods
+  getSelectedModel: () => selectedModel,
+  setSelectedModel: (model: 'nnInteractive' | 'sam2' | 'medsam2') => {
+    selectedModel = model;
   },
-  getMedSam2: () => medSam2,
+  // Legacy methods for backward compatibility (deprecated)
+  getNnInterSam2: () => selectedModel === 'sam2',
+  setNnInterSam2: (enabled: boolean) => {
+    selectedModel = enabled ? 'sam2' : 'nnInteractive';
+  },
+  getMedSam2: () => selectedModel === 'medsam2',
   setMedSam2: (enabled: boolean) => {
-    medSam2 = enabled;
+    selectedModel = enabled ? 'medsam2' : 'nnInteractive';
   },
   getLocked: () => locked,
   setLocked: (isLocked: boolean) => {

@@ -154,7 +154,7 @@ function modeFactory({ modeConfiguration }) {
         'PlanarFreehandROI2',
         'PlanarFreehandROI3',
         'RectangleROI2',
-        'sam2',
+        //'sam2',
         'nninter',
         //'resetNninter',
         //'jumpToSegment',
