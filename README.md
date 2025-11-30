@@ -6,7 +6,7 @@
 
 **Interactive AI segmentation for medical imaging, directly in your browser.**
 
-OHIF-AI integrates state-of-the-art interactive segmentation models such as **nnInteractive** and **SAM2** into the **OHIF Viewer**, enabling convenient and accurate real-time, prompt-based segmentation of medical images directly in the browser.
+OHIF-AI integrates state-of-the-art interactive segmentation models such as **nnInteractive**, **SAM2**, and **MedSAM2** into the **OHIF Viewer**, enabling convenient and accurate real-time, prompt-based segmentation of medical images directly in the browser.
 
 By combining the capabilities of large foundation models with the familiar <a href="https://ohif.org/" target="_blank">OHIF</a> interface, users can guide AI segmentation using simple visual prompts — such as **points**, **scribbles**, **lassos**, or **bounding boxes** — to delineate anatomical structures or regions of interest within 2D or 3D DICOM images. The integration supports iterative refinement, live inference, and model selection, offering a flexible framework for researchers and clinicians to explore next-generation segmentation workflows without leaving the web environment.
 
@@ -37,7 +37,7 @@ By combining the capabilities of large foundation models with the familiar <a hr
 - 🚀 **Live Mode** - Automatic inference on every prompt
 - 📦 **3D Propagation** - Single prompt automatically segments entire volume
 - 🎯 **Multiple Prompt Types** - Points, scribbles, lassos, and bounding boxes
-- 🤖 **Dual AI Models** - Choose between nnInteractive and SAM2
+- 🤖 **Multiple AI Models** - Choose among nnInteractive, SAM2, and MedSAM2
 - 🌐 **Browser-Based** - No installation required, works directly in your web browser
 
 ---
@@ -65,8 +65,8 @@ Click to watch the full demonstration of OHIF-AI in action.
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/ohif-ai.git
-   cd ohif-ai
+   git clone https://github.com/CCI-Bonn/OHIF-AI.git
+   cd OHIF-AI
    ```
 
 2. **Start the application**
@@ -101,16 +101,22 @@ The tool provides four different prompt types for segmentation (shown in red box
   <img src="docs/images/all_prompts.png" alt="All Prompts Example" width="700">
 </a>
 
+### Model Selection
+
+Choose which segmentation model to use:
+
+- **nnInteractive**: Supports all prompt types (point, scribble, lasso, bounding box)  
+- **SAM2/MedSAM2**: Currently supports positive/negative points and positive bounding boxes only
+
+💡 Based on preliminary internal testing, nnInteractive provides faster inference and generally feels more real-time and accurate in typical clinical image segmentation tasks.
+
 ### Running Inference
 
-After providing prompts, you can run inference by clicking one of the manual inference buttons located next to the red box:
-
-- **SAM2 inference**: Run segmentation using **SAM2**  
-- **nnInteractive inference**: Run segmentation using **nnInteractive**  
+After providing prompts and choosing the model, you can run inference by clicking the inference button located next to the red box:
 
 **Live Mode**: To avoid manually clicking the inference button each time, enable **Live Mode**. Once enabled, the model will automatically segment the target structure on every prompt you provide.
 
-💡 For both models, a single prompt (for example, a point or scribble on one slice) automatically propagates the segmentation across the entire 3D image stack, enabling volumetric segmentation from minimal user input.
+💡 For all models, a single prompt (for example, a point or scribble on one slice) automatically propagates the segmentation across the entire 3D image stack, enabling volumetric segmentation from minimal user input.
 
 <a href="docs/images/output.png" target="_blank">
   <img src="docs/images/output.png" alt="Output" width="700">
@@ -139,15 +145,6 @@ Use the **Refine/New** toggle to control segmentation behavior:
 
 💡 You can revisit any existing segment at any time by selecting it from the segmentation list — once selected, new prompts will continue refining that specific segmentation interactively.
 
-### Model Selection
-
-Choose which segmentation model to use:
-
-- **nnInteractive**: Supports all prompt types (point, scribble, lasso, bounding box)  
-- **SAM2**: Currently supports positive/negative points and positive bounding boxes only
-
-💡 Based on preliminary internal testing, nnInteractive provides faster inference and generally feels more real-time and accurate in typical clinical image segmentation tasks.
-
 ---
 
 ## ⌨️ Keyboard Shortcuts
@@ -165,7 +162,7 @@ For faster workflow, you can use the following keyboard shortcuts:
 - `w` - Toggle Positive/Negative
 - `e` - Toggle Refine/New
 - `r` - Run inference (if live mode off)
-- `t` - Toggle nnInteractive/SAM2
+- `t` - Circulate nnInteractive -> SAM2 -> MedSAM2
 
 <a href="docs/images/hotkeys.png" target="_blank">
   <img src="docs/images/hotkeys.png" alt="List of hotkeys" width="700">
@@ -244,10 +241,21 @@ If you use OHIF-AI in your research, please cite:
 }
 ```
 
+**MedSAM2:**
+```bibtex
+@article{MedSAM2,
+    title={MedSAM2: Segment Anything in 3D Medical Images and Videos},
+    author={Ma, Jun and Yang, Zongxin and Kim, Sumin and Chen, Bihui and Baharoon, Mohammed and Fallahpour, Adibvafa and Asakereh, Reza and Lyu, Hongwei and Wang, Bo},
+    journal={arXiv preprint arXiv:2504.03600},
+    year={2025}
+}
+```
+
 **Papers:**
 - [OHIF-SAM2 (IEEE ISBI 2025)](https://ieeexplore.ieee.org/document/10981119)
 - [nnInteractive (arXiv)](https://arxiv.org/abs/2503.08373)
 - [SAM2 (arXiv)](https://arxiv.org/abs/2408.00714)
+- [MedSAM2 (arXiv)](https://arxiv.org/abs/2504.03600)
 
 ---
 
@@ -263,6 +271,7 @@ This project builds upon:
 - [OHIF Viewer](https://ohif.org/) - Open Health Imaging Foundation Viewer
 - [SAM2](https://arxiv.org/abs/2408.00714) - Segment Anything Model 2 by Meta
 - [nnInteractive](https://arxiv.org/abs/2503.08373) - Interactive 3D Segmentation Framework
+- [MedSAM2](https://github.com/bowang-lab/MedSAM2) - MedSAM2 by Bowang lab
 
 
 
