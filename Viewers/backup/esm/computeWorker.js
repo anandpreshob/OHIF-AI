@@ -259,6 +259,10 @@ const computeWorker = {
                 try {
                     const msOutput = computeWorker.performMarchingSquares(imageData, null, 2);
                     const contourData = computeWorker.createContoursFromPolyData(msOutput);
+                    //contourData.points are ijk, we need to convert to world points
+                    contourData.polyData.points = contourData.polyData.points.map(p =>
+                        imageData.indexToWorld(p)
+                    );
                     if (contourData) {
                         sliceContours.push(contourData);
                     }
@@ -359,6 +363,10 @@ const computeWorker = {
                     imageDataCopy.getPointData().setScalars(scalars);
                     const msOutput = computeWorker.performMarchingSquares(imageDataCopy, sliceIndex);
                     const contourData = computeWorker.createContoursFromPolyData(msOutput, sliceIndex);
+                    //contourData.points are ijk, we need to convert to world points
+                    contourData.polyData.points = contourData.polyData.points.map(p =>
+                        imageData.indexToWorld(p)
+                    );
                     if (contourData) {
                         sliceContours.push(contourData);
                     }

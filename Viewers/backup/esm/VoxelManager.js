@@ -440,12 +440,36 @@ export default class VoxelManager {
             imageVoxelManager.setAtIndex(pixelIndex, v);
             return true;
         }
+
+        // Helper function to find the first cached image's voxelManager
+        // Cached for reuse across multiple calls
+        let cachedFirstImageVoxelManager = null;
+        const getFirstCachedImageVoxelManager = () => {
+        if (cachedFirstImageVoxelManager !== null) {
+            return cachedFirstImageVoxelManager;
+        }
+        // Find the first cached image to get its voxelManager
+        // Don't rely on index 0 which may not be cached yet
+        for (let i = 0; i < imageIds.length; i++) {
+            const imageId = imageIds[i];
+            if (!imageId) {
+            continue;
+            }
+            const image = cache.getImage(imageId);
+            if (image && image.voxelManager) {
+            cachedFirstImageVoxelManager = image.voxelManager;
+            return cachedFirstImageVoxelManager;
+            }
+        }
+        return null;
+        };
+
         const _getConstructor = () => {
-            const { voxelManager: imageVoxelManager, pixelIndex } = getPixelInfo(0);
-            if (!imageVoxelManager || pixelIndex === null) {
+            const firstVoxelManager = getFirstCachedImageVoxelManager();
+            if (!firstVoxelManager) {
                 return null;
             }
-            return imageVoxelManager.getConstructor();
+            return firstVoxelManager.getConstructor();
         };
         const voxelManager = new VoxelManager(dimensions, {
             _get: getVoxelValue,
@@ -500,11 +524,11 @@ export default class VoxelManager {
             return [minValue, maxValue];
         };
         voxelManager._getScalarDataLength = () => {
-            const { voxelManager: imageVoxelManager, pixelIndex } = getPixelInfo(0);
-            if (!imageVoxelManager || pixelIndex === null) {
+            const firstVoxelManager = getFirstCachedImageVoxelManager();
+            if (!firstVoxelManager) {
                 return 0;
             }
-            return imageVoxelManager.getScalarDataLength() * dimensions[2];
+            return firstVoxelManager.getScalarDataLength() * dimensions[2];
         };
         voxelManager.getCompleteScalarDataArray = () => {
             const ScalarDataConstructor = voxelManager._getConstructor();
