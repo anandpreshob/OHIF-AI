@@ -140,8 +140,20 @@ def send_response(datastore, result, output, background_tasks):
 
     res_fields = dict()
     res_fields["params"] = (None, json.dumps(res_json), "application/json")
-    if res_img and os.path.exists(res_img):
+    if type(res_img) == str and os.path.exists(res_img):
         res_fields["image"] = (os.path.basename(res_img), open(res_img, "rb"), m_type)
+    elif res_img is not None and not isinstance(res_img, str):
+        # res_img is a numpy array or other non-string type - convert to temp file
+        import tempfile
+        import nibabel as nib
+        import numpy as np
+
+        temp_file = tempfile.NamedTemporaryFile(suffix=".nii.gz", delete=False).name
+        nii_img = nib.Nifti1Image(np.array(res_img), np.eye(4))
+        nib.save(nii_img, temp_file)
+        background_tasks.add_task(remove_file, temp_file)
+        res_fields["image"] = (os.path.basename(temp_file), open(temp_file, "rb"), "application/gzip")
+        logger.info(f"Converted numpy array to NIfTI file: {temp_file}")
     else:
         logger.info(f"Return only Result Json as Result Image is not available: {res_img}")
         return res_json

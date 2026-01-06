@@ -426,6 +426,68 @@ class BasicInferTask(InferTask):
             logger.info("Reset nninter")
             return f'/code/predictions/reset.nii.gz', final_result_json
 
+        # Parse prompt_info if present (from OHIF client)
+        if 'prompt_info' in data and data['prompt_info']:
+            # Initialize prompt arrays if not present
+            if 'pos_points' not in data:
+                data['pos_points'] = []
+            if 'neg_points' not in data:
+                data['neg_points'] = []
+            if 'pos_boxes' not in data:
+                data['pos_boxes'] = []
+            if 'neg_boxes' not in data:
+                data['neg_boxes'] = []
+            if 'pos_lassos' not in data:
+                data['pos_lassos'] = []
+            if 'neg_lassos' not in data:
+                data['neg_lassos'] = []
+            if 'pos_scribbles' not in data:
+                data['pos_scribbles'] = []
+            if 'neg_scribbles' not in data:
+                data['neg_scribbles'] = []
+
+            # Parse each prompt from prompt_info array
+            for prompt in data['prompt_info']:
+                prompt_type = prompt.get('type', '')
+                prompt_data = prompt.get('data', {})
+                is_positive = prompt_data.get('pointType', 'click') == 'click'  # click=positive, erase=negative
+
+                if prompt_type == 'point':
+                    # Point prompt: {type: 'point', data: {x, y, slice, pointType}}
+                    x = prompt_data.get('x')
+                    y = prompt_data.get('y')
+                    z = prompt_data.get('slice')
+                    if x is not None and y is not None and z is not None:
+                        point = [int(x), int(y), int(z)]
+                        if is_positive:
+                            data['pos_points'].append(point)
+                        else:
+                            data['neg_points'].append(point)
+
+                elif prompt_type == 'box':
+                    # Box prompt: {type: 'box', data: {x, y, width, height, slice, pointType}}
+                    x = prompt_data.get('x')
+                    y = prompt_data.get('y')
+                    width = prompt_data.get('width')
+                    height = prompt_data.get('height')
+                    z = prompt_data.get('slice')
+                    if all(v is not None for v in [x, y, width, height, z]):
+                        box = [int(x), int(y), int(x + width), int(y + height), int(z)]
+                        if is_positive:
+                            data['pos_boxes'].append(box)
+                        else:
+                            data['neg_boxes'].append(box)
+
+                # Add support for lasso/scribble if needed in the future
+
+            logger.info(f"Parsed prompts - pos_points: {len(data['pos_points'])}, neg_points: {len(data['neg_points'])}, "
+                       f"pos_boxes: {len(data['pos_boxes'])}, neg_boxes: {len(data['neg_boxes'])}")
+
+        # Ensure all prompt arrays exist even if prompt_info wasn't provided
+        for key in ['pos_points', 'neg_points', 'pos_boxes', 'neg_boxes', 'pos_lassos', 'neg_lassos', 'pos_scribbles', 'neg_scribbles']:
+            if key not in data:
+                data[key] = []
+
         img = None
 
         # Handle ZIP files - extract them first
