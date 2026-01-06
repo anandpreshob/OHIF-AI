@@ -106,7 +106,7 @@ export default class MonaiLabelPanel extends Component {
         ? this.settings.current.state
         : null;
     return new MonaiLabelClient(
-      settings ? settings.url : 'http://127.0.0.1:8000'
+      settings ? settings.url : 'http://129.213.144.179:8002'
     );
   };
 
