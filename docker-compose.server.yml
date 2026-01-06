@@ -1,0 +1,31 @@
+services:
+  monai_sam2:
+    build:
+      context: ./
+      dockerfile: ./monai-label/Dockerfile
+    image: monai
+    container_name: monai_sam2
+    volumes:
+      - ./monai-label/predictions:/code/predictions
+      - ./monai-label/studies:/code/studies
+    environment:
+      - CUDA_VISIBLE_DEVICES=0
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              capabilities: [gpu]
+    shm_size: '10gb'
+    ports:
+      - '8002:8002'
+    restart: on-failure
+    command: >
+      python -m monailabel.main start_server
+      --app /code/apps/radiology
+      --studies /code/studies
+      --conf models segmentation
+      --conf use_pretrained_model false
+      -p 8002
