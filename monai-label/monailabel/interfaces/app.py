@@ -217,24 +217,24 @@ class MONAILabelApp:
             "name": self.name,
             "description": self.description,
             "version": self.version,
-        #    "labels": self.labels,
-        #    "models": {k: v.info() for k, v in self._infers.items() if v.is_valid()},
+            "labels": self.labels,
+            "models": {k: v.info() for k, v in self._infers.items() if v.is_valid()},
             "trainers": {k: v.info() for k, v in self._trainers.items()},
-        #    "strategies": {k: v.info() for k, v in self._strategies.items()},
-        #    "scoring": {k: v.info() for k, v in self._scoring_methods.items()},
-        #    "train_stats": {k: v.stats() for k, v in self._trainers.items()},
-        #    "datastore": self._datastore.status(),
+            "strategies": {k: v.info() for k, v in self._strategies.items()},
+            "scoring": {k: v.info() for k, v in self._scoring_methods.items()},
+            "train_stats": {k: v.stats() for k, v in self._trainers.items()},
+            "datastore": self._datastore.status(),
         }
         # If labels are not provided, aggregate from all individual infers
-        #if not self.labels:
-        #    merged = []
-        #    for labels in [v.get("labels", []) for v in meta["models"].values()]:
-        #        if labels and isinstance(labels, dict):
-        #            labels = [k for k, _ in sorted(labels.items(), key=lambda item: item[1])]  # type: ignore
-        #        for label in labels:
-        #            if label not in merged:
-        #                merged.append(label)
-        #    meta["labels"] = merged
+        if not self.labels:
+            merged = []
+            for labels in [v.get("labels", []) for v in meta["models"].values()]:
+                if labels and isinstance(labels, dict):
+                    labels = [k for k, _ in sorted(labels.items(), key=lambda item: item[1])]  # type: ignore
+                for label in labels:
+                    if label not in merged:
+                        merged.append(label)
+            meta["labels"] = merged
 
         return meta
 
