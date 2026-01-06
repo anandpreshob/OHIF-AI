@@ -100,6 +100,7 @@ def send_response(datastore, result, output, background_tasks):
 
     if type(res_img) == str:
         if not os.path.exists(res_img):
+            res_tag = result.get("tag", "final")  # default tag
             res_img = datastore.get_label_uri(res_img, res_tag)
         else:
             background_tasks.add_task(remove_file, res_img)

@@ -434,13 +434,23 @@ class BasicInferTask(InferTask):
             import zipfile
             import tempfile
             import os
+            import glob
             # Create temp directory for extraction
             extract_dir = tempfile.mkdtemp()
             logger.info(f"Extracting ZIP file {image_path} to {extract_dir}")
             with zipfile.ZipFile(image_path, 'r') as zip_ref:
                 zip_ref.extractall(extract_dir)
-            # Use extracted directory as dicom_dir
-            dicom_dir = extract_dir
+
+            # Find the actual directory with DICOM files (may be nested)
+            dcm_files = glob.glob(os.path.join(extract_dir, '**', '*.dcm'), recursive=True)
+            if dcm_files:
+                # Use the directory containing the first DICOM file
+                dicom_dir = os.path.dirname(dcm_files[0])
+                logger.info(f"Found DICOM files in: {dicom_dir}")
+            else:
+                # Fallback to extract_dir
+                dicom_dir = extract_dir
+                logger.warning(f"No .dcm files found, using extract root: {dicom_dir}")
         else:
             dicom_dir = image_path.split('.nii.gz')[0]
 
