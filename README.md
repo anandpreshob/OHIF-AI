@@ -54,12 +54,32 @@ Click to watch the full demonstration of OHIF-AI in action.
 
 ## 🚀 Getting Started
 
+### Deployment Options
+
+**Option 1: Full Stack (OHIF Viewer + MONAI Label Server)**
+- Run everything locally with Docker Compose
+- Includes OHIF web viewer, Orthanc PACS, and MONAI Label server
+- Best for: Development, testing, single-user setups
+
+**Option 2: GPU Server Only (Production/Cloud)**
+- Deploy only MONAI Label server on GPU cloud instance
+- Connect from local OHIF viewer or custom client
+- Best for: Production, multi-user environments, cost optimization
+- 📖 **[GPU Server Deployment Guide](SERVER_DEPLOYMENT_GUIDE.md)**
+- 📖 **[API Reference](API_REFERENCE.md)**
+
 ### Prerequisites
 
+**Full Stack:**
 - **Docker** (v27.3.1 or later)
 - **NVIDIA Container Toolkit** (v1.16.2 or later)
 - **CUDA** v12.6 or compatible version
 - NVIDIA GPU with appropriate drivers
+
+**GPU Server Only:**
+- Cloud GPU instance (NVIDIA T4, A10, or better)
+- Docker + NVIDIA Docker Runtime
+- See [SERVER_DEPLOYMENT_GUIDE.md](SERVER_DEPLOYMENT_GUIDE.md) for details
 
 ### Model Checkpoints
 
@@ -81,11 +101,11 @@ Model checkpoints are typically downloaded automatically during setup. However, 
 
 ![SAM3 Not Found Warning](docs/images/sam3_not_found.png)
 
-### Quick Start
+### Quick Start (Full Stack)
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/CCI-Bonn/OHIF-AI.git
+   git clone https://github.com/anandpreshob/OHIF-AI.git
    cd OHIF-AI
    ```
 
@@ -95,12 +115,35 @@ Model checkpoints are typically downloaded automatically during setup. However, 
    ```
 
 3. **Access the viewer**
-   
+
    Open your browser and navigate to: http://localhost:1026
 
 4. **Load sample data**
-   
+
    Upload all DICOM files from the `sample-data` directory
+
+### Quick Start (GPU Server Only)
+
+Deploy MONAI Label server on a cloud GPU instance in 5 commands:
+
+```bash
+# 1. Clone repository
+git clone https://github.com/anandpreshob/OHIF-AI.git
+cd OHIF-AI
+
+# 2. Build and start server
+sudo docker compose -f docker-compose.server.yml up --build -d
+
+# 3. Verify server is running
+curl http://localhost:8002/info/
+
+# 4. Test interactive segmentation
+curl -X POST http://localhost:8002/infer/segmentation \
+  -F "file=@sample-data/2.000000-PRE LIVER-76970.zip" \
+  -F 'params={"nninter":"init"}'
+```
+
+For detailed instructions, see **[SERVER_DEPLOYMENT_GUIDE.md](SERVER_DEPLOYMENT_GUIDE.md)**
 
 ---
 
