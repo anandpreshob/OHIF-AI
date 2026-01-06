@@ -427,9 +427,24 @@ class BasicInferTask(InferTask):
             return f'/code/predictions/reset.nii.gz', final_result_json
 
         img = None
-        
-        dicom_dir = data['image'].split('.nii.gz')[0]
-        seriesInstanceUID = dicom_dir.split("/")[-1]
+
+        # Handle ZIP files - extract them first
+        image_path = data['image']
+        if image_path.endswith('.zip'):
+            import zipfile
+            import tempfile
+            import os
+            # Create temp directory for extraction
+            extract_dir = tempfile.mkdtemp()
+            logger.info(f"Extracting ZIP file {image_path} to {extract_dir}")
+            with zipfile.ZipFile(image_path, 'r') as zip_ref:
+                zip_ref.extractall(extract_dir)
+            # Use extracted directory as dicom_dir
+            dicom_dir = extract_dir
+        else:
+            dicom_dir = image_path.split('.nii.gz')[0]
+
+        seriesInstanceUID = os.path.basename(dicom_dir)
         logger.info(f"Series Instance UID: {seriesInstanceUID}")
 
         reader = sitk.ImageSeriesReader()
