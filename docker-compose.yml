@@ -1,6 +1,17 @@
 # Reference:
 # - https://docs.docker.com/compose/compose-file
 # - https://eclipsesource.com/blogs/2018/01/11/authenticating-reverse-proxy-with-keycloak/
+
+# ============================================================================
+# MONAI Label Server Configuration
+# ============================================================================
+# Change these values when connecting to a different MONAI Label server
+# (e.g., a new GPU instance)
+x-monai-config: &monai-config
+  MONAI_SERVER_HOST: 129.213.144.179  # IP address of MONAI Label server
+  MONAI_SERVER_PORT: 8002              # Port of MONAI Label server
+# ============================================================================
+
 services:
   # Exposed server that's handling incoming web requests
   ohif_viewer:
@@ -11,12 +22,16 @@ services:
       dockerfile: ./platform/app/.recipes/Nginx-Orthanc/dockerfile
     image: webapp:latest
     container_name: ohif_orthanc
+    environment:
+      <<: *monai-config
     volumes:
-      # Nginx config
-      - ./Viewers/platform/app/.recipes/Nginx-Orthanc/config/nginx.conf:/etc/nginx/nginx.conf
+      # Nginx config template (processed by entrypoint)
+      - ./Viewers/platform/app/.recipes/Nginx-Orthanc/config/nginx.conf.template:/etc/nginx/nginx.conf.template
+      - ./Viewers/platform/app/.recipes/Nginx-Orthanc/config/docker-entrypoint.sh:/docker-entrypoint.sh
       - ./Viewers/platform/app/.recipes/Nginx-Orthanc/config/.htpasswd:/etc/nginx/.htpasswd
       # Logs
       - ./Viewers/platform/app/.recipes/Nginx-Orthanc/logs/nginx:/var/logs/nginx
+    entrypoint: ["/bin/sh", "/docker-entrypoint.sh"]
     ports:
       - '1025:1025' # SSL
       - '1026:1026' # Web

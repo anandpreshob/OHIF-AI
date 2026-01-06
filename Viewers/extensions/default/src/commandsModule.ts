@@ -28,8 +28,143 @@ import MonaiLabelClient from '../../monai-label/src/services/MonaiLabelClient';
 import { updateSegmentationStats } from '../../cornerstone/src/utils/updateSegmentationStats';
 import axios from 'axios';
 import { toolboxState } from './stores/toolboxState';
-import { parseMultipart } from './utils/multipart';
+import { parseMultipart, parseNifti } from './utils/multipart';
 
+/**
+ * Helper function to fetch DICOM from Orthanc and post to MONAI Label
+ * Used for initialization calls that need to upload the full DICOM series
+ */
+async function postToMonaiWithDicom(
+  seriesInstanceUID: string,
+  model: string,
+  params: any,
+  orthancUrl: string = '/pacs'
+): Promise<any> {
+  // Lookup Orthanc ID from SeriesInstanceUID
+  const baseUrl = orthancUrl.replace(/\/dicom-web\/?$/, '').replace(/\/$/, '');
+  const lookupUrl = `${baseUrl}/tools/lookup`;
+  console.debug('Looking up series:', seriesInstanceUID, 'at', lookupUrl);
+
+  let orthancId: string | null = null;
+  try {
+    const lookupResponse = await axios.post(lookupUrl, seriesInstanceUID, {
+      headers: { 'Content-Type': 'text/plain' }
+    });
+    if (lookupResponse.data && lookupResponse.data.length > 0) {
+      const seriesResult = lookupResponse.data.find((item: any) => item.Type === 'Series');
+      if (seriesResult) {
+        orthancId = seriesResult.ID;
+        console.debug('Found Orthanc series ID:', orthancId);
+      }
+    }
+  } catch (error) {
+    console.error('Failed to lookup series:', error);
+  }
+
+  if (!orthancId) {
+    throw new Error(`Series not found in Orthanc: ${seriesInstanceUID}`);
+  }
+
+  // Download series archive from Orthanc
+  const archiveUrl = `${baseUrl}/series/${orthancId}/archive`;
+  console.debug('Downloading series archive:', archiveUrl);
+
+  let dicomBlob: Blob;
+  try {
+    const archiveResponse = await axios.get(archiveUrl, {
+      responseType: 'arraybuffer'
+    });
+    console.debug('Series archive downloaded, size:', archiveResponse.data.byteLength);
+    dicomBlob = new Blob([archiveResponse.data], { type: 'application/zip' });
+  } catch (error) {
+    console.error('Failed to download series archive:', error);
+    throw new Error(`Failed to download series archive: ${orthancId}`);
+  }
+
+  // Create FormData with the DICOM file and params
+  const formData = new FormData();
+  formData.append('params', JSON.stringify(params));
+  formData.append('file', dicomBlob, 'series.zip');
+
+  // Post to MONAI Label
+  const monaiUrl = `/monai/infer/${encodeURIComponent(model)}?output=all`;
+  console.debug('Uploading DICOM to MONAI Label:', monaiUrl);
+
+  return axios.post(monaiUrl, formData, {
+    responseType: 'arraybuffer',
+    headers: {
+      accept: 'application/json, multipart/form-data',
+    },
+  });
+}
+
+/**
+ * Helper function to post to MONAI Label with file upload
+ * Server requires file upload for each inference call (uses internal caching)
+ */
+async function postToMonaiWithImageId(
+  seriesInstanceUID: string,
+  model: string,
+  params: any,
+  orthancUrl: string = '/pacs'
+): Promise<any> {
+  // Lookup Orthanc ID from SeriesInstanceUID
+  const baseUrl = orthancUrl.replace(/\/dicom-web\/?$/, '').replace(/\/$/, '');
+  const lookupUrl = `${baseUrl}/tools/lookup`;
+  console.debug('Looking up series for inference:', seriesInstanceUID);
+
+  let orthancId: string | null = null;
+  try {
+    const lookupResponse = await axios.post(lookupUrl, seriesInstanceUID, {
+      headers: { 'Content-Type': 'text/plain' }
+    });
+    if (lookupResponse.data && lookupResponse.data.length > 0) {
+      const seriesResult = lookupResponse.data.find((item: any) => item.Type === 'Series');
+      if (seriesResult) {
+        orthancId = seriesResult.ID;
+      }
+    }
+  } catch (error) {
+    console.error('Failed to lookup series:', error);
+    throw new Error(`Series not found in Orthanc: ${seriesInstanceUID}`);
+  }
+
+  if (!orthancId) {
+    throw new Error(`Series not found in Orthanc: ${seriesInstanceUID}`);
+  }
+
+  // Download series archive from Orthanc
+  const archiveUrl = `${baseUrl}/series/${orthancId}/archive`;
+  console.debug('Downloading series archive for inference:', archiveUrl);
+
+  let dicomBlob: Blob;
+  try {
+    const archiveResponse = await axios.get(archiveUrl, {
+      responseType: 'arraybuffer'
+    });
+    console.debug('Series archive downloaded, size:', archiveResponse.data.byteLength);
+    dicomBlob = new Blob([archiveResponse.data], { type: 'application/zip' });
+  } catch (error) {
+    console.error('Failed to download series archive:', error);
+    throw new Error(`Failed to download series archive: ${orthancId}`);
+  }
+
+  // Create FormData with the DICOM file and params
+  const formData = new FormData();
+  formData.append('params', JSON.stringify(params));
+  formData.append('file', dicomBlob, 'series.zip');
+
+  // Post to MONAI Label
+  const monaiUrl = `/monai/infer/${encodeURIComponent(model)}?output=all`;
+  console.debug('Uploading DICOM to MONAI Label for inference:', monaiUrl);
+
+  return axios.post(monaiUrl, formData, {
+    responseType: 'arraybuffer',
+    headers: {
+      accept: 'application/json, multipart/form-data',
+    },
+  });
+}
 
 export type HangingProtocolParams = {
   protocolId?: string;
@@ -739,8 +874,7 @@ const commandsModule = ({
         });
         return;
       }
-      let url = `/monai/infer/segmentation?image=${currentDisplaySets.SeriesInstanceUID}&output=dicom_seg`;
-      let params = {
+      const params = {
         largest_cc: false,
         result_extension: '.nii.gz',
         result_dtype: 'uint16',
@@ -755,15 +889,12 @@ const commandsModule = ({
         medsam2: medsam2,
       };
 
-      let data = MonaiLabelClient.constructFormData(params, null);
-
-      // Create the axios promise
-      const segmentationPromise = axios.post(url, data, {
-        responseType: 'arraybuffer',
-        headers: {
-          accept: 'application/json, multipart/form-data',
-        },
-      });
+      // Create the axios promise - fetches DICOM from Orthanc and uploads to MONAI
+      const segmentationPromise = postToMonaiWithDicom(
+        currentDisplaySets.SeriesInstanceUID,
+        'segmentation',
+        params
+      );
 
       // Show notification with promise support
       uiNotificationService.show({
@@ -800,11 +931,11 @@ const commandsModule = ({
           const { meta, seg } = await parseMultipart(response.data, ct);
           console.log(`Just after parseMultipart: ${(Date.now() - start)/1000} Seconds`);
           //const arrayBuffer = response.data
-          const flipped = meta.flipped.toLowerCase() === "true"
+          const flipped = meta.flipped === true || meta.flipped === "true" || (typeof meta.flipped === 'string' && meta.flipped.toLowerCase() === "true")
           const sam_elapsed = meta.sam_elapsed
           const prompt_info = meta.prompt_info
           const label_name = meta.label_name
-          const raw = seg
+          const { voxels: raw } = parseNifti(seg)  // Extract voxels from NIfTI format
           const new_arrayBuffer = new Uint8Array(raw);
 
           let imageIds = currentDisplaySets.imageIds
@@ -1079,8 +1210,7 @@ const commandsModule = ({
       if(currentDisplaySets === undefined || currentDisplaySets.Modality === "SEG"){
         return;
       }
-      let url = `/monai/infer/segmentation?image=${currentDisplaySets.SeriesInstanceUID}&output=dicom_seg`;
-      let params = {
+      const params = {
         largest_cc: false,
         result_extension: '.nii.gz',
         result_dtype: 'uint16',
@@ -1090,15 +1220,12 @@ const commandsModule = ({
         nninter: "init",
       };
 
-      let data = MonaiLabelClient.constructFormData(params, null);
-
-      // Create the axios promise
-      const initPromise = axios.post(url, data, {
-        responseType: 'arraybuffer',
-        headers: {
-          accept: 'application/json, multipart/form-data',
-        },
-      });
+      // Create the axios promise - fetches DICOM from Orthanc and uploads to MONAI
+      const initPromise = postToMonaiWithDicom(
+        currentDisplaySets.SeriesInstanceUID,
+        'segmentation',
+        params
+      );
 
       // Show notification with promise support
       uiNotificationService.show({
@@ -1137,8 +1264,7 @@ const commandsModule = ({
       const currentDisplaySets = displaySets.filter(e => {
         return e.displaySetInstanceUID == displaySetInstanceUID;
       })[0];
-      let url = `/monai/infer/segmentation?image=${currentDisplaySets.SeriesInstanceUID}&output=dicom_seg`;
-      let params = {
+      const params = {
         largest_cc: false,
         result_extension: '.nii.gz',
         result_dtype: 'uint16',
@@ -1148,15 +1274,12 @@ const commandsModule = ({
         nninter: "reset",
       };
 
-      let data = MonaiLabelClient.constructFormData(params, null);
-
-      // Create the axios promise
-      const resetPromise = axios.post(url, data, {
-        responseType: 'arraybuffer',
-        headers: {
-          accept: 'application/json, multipart/form-data',
-        },
-      });
+      // Create the axios promise - fetches DICOM from Orthanc and uploads to MONAI
+      const resetPromise = postToMonaiWithDicom(
+        currentDisplaySets.SeriesInstanceUID,
+        'segmentation',
+        params
+      );
 
       // Show notification with promise support
       uiNotificationService.show({
@@ -1370,8 +1493,7 @@ const commandsModule = ({
         document.dispatchEvent(event);
       }, 200);
 
-      let url = `/monai/infer/segmentation?image=${currentDisplaySets.SeriesInstanceUID}&output=dicom_seg`;
-      let params = {
+      const params: any = {
         largest_cc: false,
       //  device: response.data.trainers.segmentation.config.device,
         result_extension: '.nii.gz',
@@ -1388,26 +1510,21 @@ const commandsModule = ({
         pos_scribbles: pos_scribbles,
         neg_scribbles: neg_scribbles,
         texts: text_prompts,
-        nninter: true,
+        nninter: "sam3",  // Server expects string mode: "init", "sam3", or "reset"
       };
 
       if(useToggleHangingProtocolStore.getState().toggleHangingProtocol.nextObj!==undefined){
         params.nextObj = useToggleHangingProtocolStore.getState().toggleHangingProtocol.nextObj
       }
 
-      let data = MonaiLabelClient.constructFormData(params, null);
-
-      
       const beforePost = Date.now();
       console.log(`Before Post request: ${(beforePost - start)/1000} Seconds`);
-      // Create the axios promise
-      const segmentationPromise = axios.post(url, data, {
-        responseType: 'arraybuffer',
-        headers: {
-          //accept: 'application/json, multipart/form-data',
-          accept: 'application/octet-stream',
-        },
-      });
+      // Create the axios promise - uses cached image on MONAI server (uploaded during init)
+      const segmentationPromise = postToMonaiWithImageId(
+        currentDisplaySets.SeriesInstanceUID,
+        'segmentation',
+        params
+      );
 
       // Show notification with promise support
       uiNotificationService.show({
@@ -1433,11 +1550,11 @@ const commandsModule = ({
             const { meta, seg } = await parseMultipart(response.data, ct);
             console.log(`Just after parseMultipart: ${(Date.now() - start)/1000} Seconds`);
             //const arrayBuffer = response.data
-            const flipped = meta.flipped.toLowerCase() === "true"
+            const flipped = meta.flipped === true || meta.flipped === "true" || (typeof meta.flipped === 'string' && meta.flipped.toLowerCase() === "true")
             const nninter_elapsed = meta.nninter_elapsed
             const prompt_info = meta.prompt_info
             const label_name = meta.label_name
-            const raw = seg
+            const { voxels: raw } = parseNifti(seg)  // Extract voxels from NIfTI format
             const new_arrayBuffer = new Uint8Array(raw);
 
             let imageIds = currentDisplaySets.imageIds

@@ -24,7 +24,7 @@ http {
   client_max_body_size 500M;
 
   upstream monai_up {
-    server 129.213.144.179:8002;
+    server ${MONAI_SERVER_HOST}:${MONAI_SERVER_PORT};
     keepalive 64;   # pool of idle connections to FastAPI
   }
 
@@ -33,14 +33,14 @@ http {
     listen [::]:1026 default_server;
     listen 1026;
     server_name nninter.ccibonn.ai;
-  
+
     #if ($http_cf_visitor !~ '"scheme":"https"') {
     #  return 301 https://$host$request_uri;
     #}
 
     gzip on;
     gzip_vary on;                     # send Vary: Accept-Encoding
-    gzip_min_length 1024;             # don’t bother for tiny payloads
+    gzip_min_length 1024;             # don't bother for tiny payloads
     gzip_comp_level 6;                # 6 is a good perf/ratio tradeoff
     gzip_proxied any;                 # <— IMPORTANT for proxied responses
     gzip_types
@@ -81,17 +81,17 @@ http {
     }
 
     location /monai/ {
-      proxy_pass http://129.213.144.179:8002;
+      proxy_pass http://${MONAI_SERVER_HOST}:${MONAI_SERVER_PORT};
       proxy_http_version 1.1;
       proxy_set_header Connection "";
-      
+
       proxy_set_header Host $host;
       proxy_set_header X-Real-IP $remote_addr;
       proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
       proxy_set_header X-Forwarded-Proto $scheme;
 
       proxy_request_buffering off;   # stream request to upstream
-      proxy_buffering off;  
+      proxy_buffering off;
 
       proxy_buffer_size       16k;
       proxy_buffers           8 64k;
@@ -99,7 +99,7 @@ http {
 
       gzip off;
       #proxy_set_header Accept-Encoding "";  # Disable gzip encoding
-      
+
       # generous timeouts for inference
       proxy_connect_timeout 300s;
       proxy_read_timeout    300s;

@@ -1,8 +1,75 @@
 import axios from 'axios';
 
 export default class MonaiLabelClient {
-  constructor(server_url) {
+  constructor(server_url, orthancUrl = null) {
     this.server_url = new URL(server_url);
+    // Orthanc URL for fetching DICOM data - defaults to local proxy
+    this.orthancUrl = orthancUrl || '/pacs';
+  }
+
+  /**
+   * Lookup Orthanc ID from SeriesInstanceUID
+   */
+  async lookupSeriesId(seriesInstanceUID) {
+    // Remove trailing slash and dicom-web suffix if present, then add tools/lookup
+    const baseUrl = this.orthancUrl.replace(/\/dicom-web\/?$/, '').replace(/\/$/, '');
+    const url = `${baseUrl}/tools/lookup`;
+    console.debug('Looking up series:', seriesInstanceUID, 'at', url);
+    try {
+      const response = await axios.post(url, seriesInstanceUID, {
+        headers: { 'Content-Type': 'text/plain' }
+      });
+      if (response.data && response.data.length > 0) {
+        const seriesResult = response.data.find(item => item.Type === 'Series');
+        if (seriesResult) {
+          console.debug('Found Orthanc series ID:', seriesResult.ID);
+          return seriesResult.ID;
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('Failed to lookup series:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Download series as ZIP archive from Orthanc
+   */
+  async downloadSeriesArchive(orthancSeriesId) {
+    // Remove trailing slash and dicom-web suffix if present
+    const baseUrl = this.orthancUrl.replace(/\/dicom-web\/?$/, '').replace(/\/$/, '');
+    const url = `${baseUrl}/series/${orthancSeriesId}/archive`;
+    console.debug('Downloading series archive:', url);
+    try {
+      const response = await axios.get(url, {
+        responseType: 'arraybuffer'
+      });
+      console.debug('Series archive downloaded, size:', response.data.byteLength);
+      return new Blob([response.data], { type: 'application/zip' });
+    } catch (error) {
+      console.error('Failed to download series archive:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Fetch DICOM series from Orthanc and return as blob
+   */
+  async fetchDicomSeries(seriesInstanceUID) {
+    // First lookup the Orthanc ID
+    const orthancId = await this.lookupSeriesId(seriesInstanceUID);
+    if (!orthancId) {
+      throw new Error(`Series not found in Orthanc: ${seriesInstanceUID}`);
+    }
+
+    // Download the series archive
+    const archive = await this.downloadSeriesArchive(orthancId);
+    if (!archive) {
+      throw new Error(`Failed to download series archive: ${orthancId}`);
+    }
+
+    return archive;
   }
 
   async info() {
@@ -22,11 +89,13 @@ export default class MonaiLabelClient {
     return this.infer(model, image, params);
   }
 
+  /**
+   * Run inference with file upload support.
+   * Fetches DICOM from Orthanc and uploads directly to MONAI Label server.
+   */
   async infer(model, image, params, label = null, result_extension = '.nii.gz') {
     let url = new URL('infer/' + encodeURIComponent(model), this.server_url);
-    url.searchParams.append('image', image);
-    url.searchParams.append('output', 'dicom_seg');
-    // url.searchParams.append('output', 'image');
+    url.searchParams.append('output', 'all');
     url = url.toString();
 
     if (result_extension) {
@@ -41,7 +110,40 @@ export default class MonaiLabelClient {
     // return the indexes as defined in the config file
     params.restore_label_idx = false;
 
-    return await MonaiLabelClient.api_post(url, params, label, true, 'arraybuffer');
+    // Fetch DICOM series from Orthanc and upload to MONAI
+    console.debug('Fetching DICOM series from Orthanc:', image);
+    let dicomBlob;
+    try {
+      dicomBlob = await this.fetchDicomSeries(image);
+      console.debug('DICOM series fetched, size:', dicomBlob.size);
+    } catch (error) {
+      console.error('Failed to fetch DICOM series:', error);
+      // Fall back to old behavior (pass image ID only)
+      url = new URL('infer/' + encodeURIComponent(model), this.server_url);
+      url.searchParams.append('image', image);
+      url.searchParams.append('output', 'all');
+      url = url.toString();
+      return await MonaiLabelClient.api_post(url, params, label, true, 'arraybuffer');
+    }
+
+    // Create FormData with the DICOM file
+    const formData = new FormData();
+    formData.append('params', JSON.stringify(params));
+    formData.append('file', dicomBlob, 'series.zip');
+
+    // Add label if provided (for scribbles, etc.)
+    if (label) {
+      if (Array.isArray(label)) {
+        for (let i = 0; i < label.length; i++) {
+          formData.append(label[i].name, label[i].data, label[i].fileName);
+        }
+      } else {
+        formData.append('label', label, 'label.bin');
+      }
+    }
+
+    console.debug('Uploading DICOM to MONAI Label:', url);
+    return await MonaiLabelClient.api_post_data(url, formData, 'arraybuffer');
   }
 
   async next_sample(stategy = 'random', params = {}) {
